@@ -40,8 +40,21 @@ config IOSCHED_ROW
 	  WRITE requests when dispatching, without starving WRITE requests.
 	  Requests are kept in priority queues. Dispatching is done in a RR
 	  manner when the dispatch quantum for each queue is calculated
-	  according to queue priority.
-	  Most suitable for mobile devices.
+	  according to queue priority. Most suitable for mobile devices.
+
+config IOSCHED_MAPLE
+	tristate "Maple I/O scheduler"
+	default y
+	---help---
+	  Maple is based on the Zen and Simple I/O schedulers. It uses ZENs
+	  first-come-first-serve style algorithm, with separate read/write
+	  requests, and improved former/latter request handling from SIO. Maple
+	  is biased towards handling asynchronous requests before synchronous,
+	  and read requests before write. While this can have negative affects
+	  on write intensive tasks like file copying, it slightly improves UI
+	  responsiveness. When the device is asleep, maple increases the expiry
+	  time of requests so that it can handle them more slowly, causing less
+	  overhead.
 
 config IOSCHED_CFQ
 	tristate "CFQ I/O scheduler"
@@ -85,6 +98,7 @@ config IOSCHED_ZEN
 	---help---
 	  FCFS, dispatches are back-inserted, deadlines ensure fairness.
 	  Should work best with devices where there is no travel delay.
+
 config IOSCHED_BFQ
 	tristate "BFQ I/O scheduler"
 	default n
@@ -126,6 +140,19 @@ choice
 		  for each queue is defined according to queue priority.
 		  Most suitable for mobile devices.
 
+	config DEFAULT_MAPLE
+		bool "Maple" if IOSCHED_MAPLE=y
+		help
+		  Maple is based on the Zen and Simple I/O schedulers. It uses ZENs
+	  	  first-come-first-serve style algorithm, with separate read/write
+	  	  requests, and improved former/latter request handling from SIO. Maple
+	  	  is biased towards handling asynchronous requests before synchronous,
+	  	  and read requests before write. While this can have negative affects
+	  	  on write intensive tasks like file copying, it slightly improves UI
+	  	  responsiveness. When the device is asleep, maple increases the expiry
+	  	  time of requests so that it can handle them more slowly, causing less
+	  	  overhead.
+
 	config DEFAULT_CFQ
 		bool "CFQ" if IOSCHED_CFQ=y
 
@@ -149,13 +176,13 @@ choice
 
 	config DEFAULT_FIOPS
 		bool "FIOPS" if IOSCHED_FIOPS=y
-
 endchoice
 
 config DEFAULT_IOSCHED
 	string
 	default "deadline" if DEFAULT_DEADLINE
 	default "row" if DEFAULT_ROW
+	default "maple" if DEFAULT_MAPLE
 	default "cfq" if DEFAULT_CFQ
 	default "bfq" if DEFAULT_BFQ
 	default "noop" if DEFAULT_NOOP
