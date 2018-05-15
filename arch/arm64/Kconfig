@@ -1077,6 +1077,8 @@ endmenu
 
 source "net/Kconfig"
 
+source "arch/arm64/hotplug/Kconfig"
+
 source "drivers/Kconfig"
 
 source "drivers/firmware/Kconfig"
