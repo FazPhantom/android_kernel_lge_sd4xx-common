@@ -4458,6 +4458,7 @@ static int fg_cap_learning_process_full_data(struct fg_chip *chip)
 	int cc_pc_val, rc = -EINVAL;
 	unsigned int cc_soc_delta_pc;
 	int64_t delta_cc_uah;
+	uint64_t temp;
 	bool batt_missing = is_battery_missing(chip);
 
 	if (batt_missing) {
@@ -4480,9 +4481,8 @@ static int fg_cap_learning_process_full_data(struct fg_chip *chip)
 		goto fail;
 	}
 
-	cc_soc_delta_pc = DIV_ROUND_CLOSEST(
-					    abs(cc_pc_val - chip->learning_data.init_cc_pc_val)
-					    * 100, FULL_PERCENT_28BIT);
+	temp = abs(cc_pc_val - chip->learning_data.init_cc_pc_val);
+	cc_soc_delta_pc = DIV_ROUND_CLOSEST_ULL(temp * 100, FULL_PERCENT_28BIT);
 
 	delta_cc_uah = div64_s64(
 				 chip->learning_data.learned_cc_uah * cc_soc_delta_pc,
@@ -4490,9 +4490,12 @@ static int fg_cap_learning_process_full_data(struct fg_chip *chip)
 	chip->learning_data.cc_uah = delta_cc_uah + chip->learning_data.cc_uah;
 
 	if (fg_debug_mask & FG_AGING)
-		pr_info("current cc_soc=%d cc_soc_pc=%d total_cc_uah = %lld\n",
-			cc_pc_val, cc_soc_delta_pc,
-			chip->learning_data.cc_uah);
+		pr_info("current cc_soc=%d cc_soc_pc=%d init_cc_pc_val=%d delta_cc_uah=%lld learned_cc_uah=%lld total_cc_uah = %lld\n",
+				cc_pc_val, cc_soc_delta_pc,
+				chip->learning_data.init_cc_pc_val,
+				delta_cc_uah,
+				chip->learning_data.learned_cc_uah,
+				chip->learning_data.cc_uah);
 
 	return 0;
 
@@ -5012,11 +5015,11 @@ static void status_change_work(struct work_struct *work)
 		}
 	}
 	if ((chip->wa_flag & USE_CC_SOC_REG) && chip->bad_batt_detection_en
-	    && chip->safety_timer_expired) {
-		chip->sw_cc_soc_data.delta_soc =
-			DIV_ROUND_CLOSEST(abs(cc_soc -
-					      chip->sw_cc_soc_data.init_cc_soc)
-					  * 100, FULL_PERCENT_28BIT);
+			&& chip->safety_timer_expired) {
+		uint64_t delta_cc_soc = abs(cc_soc -
+					chip->sw_cc_soc_data.init_cc_soc);
+		chip->sw_cc_soc_data.delta_soc = DIV_ROUND_CLOSEST_ULL(
+				delta_cc_soc * 100, FULL_PERCENT_28BIT);
 		chip->sw_cc_soc_data.full_capacity =
 			chip->sw_cc_soc_data.delta_soc +
 			chip->sw_cc_soc_data.init_sys_soc;
@@ -6425,17 +6428,18 @@ static irqreturn_t fg_first_soc_irq_handler(int irq, void *_chip)
 static void fg_external_power_changed(struct power_supply *psy)
 {
 	struct fg_chip *chip = container_of(psy, struct fg_chip, bms_psy);
+	bool input_present = is_input_present(chip);
 
-	if (is_input_present(chip) && chip->rslow_comp.active &&
-	    chip->rslow_comp.chg_rs_to_rslow > 0 &&
-	    chip->rslow_comp.chg_rslow_comp_c1 > 0 &&
-	    chip->rslow_comp.chg_rslow_comp_c2 > 0)
+	if (input_present ^ chip->rslow_comp.active &&
+			chip->rslow_comp.chg_rs_to_rslow > 0 &&
+			chip->rslow_comp.chg_rslow_comp_c1 > 0 &&
+			chip->rslow_comp.chg_rslow_comp_c2 > 0)
 		schedule_work(&chip->rslow_comp_work);
-	if (!is_input_present(chip) && chip->resume_soc_lowered) {
+	if (!input_present && chip->resume_soc_lowered) {
 		fg_stay_awake(&chip->resume_soc_wakeup_source);
 		schedule_work(&chip->set_resume_soc_work);
 	}
-	if (!is_input_present(chip) && chip->charge_full)
+	if (!input_present && chip->charge_full)
 		schedule_work(&chip->charge_full_work);
 }
 
@@ -6501,6 +6505,25 @@ static void set_resume_soc_work(struct work_struct *work)
 #define RSLOW_COMP_C1_OFFSET		0
 #define RSLOW_COMP_C2_OFFSET		2
 //#define CAPACITY_DELTA_DECIPCT		210
+#define BATT_PROFILE_OFFSET		0x4C0
+static void get_default_rslow_comp_settings(struct fg_chip *chip)
+{
+	int offset;
+
+	offset = RSLOW_CFG_REG + RSLOW_CFG_OFFSET - BATT_PROFILE_OFFSET;
+	memcpy(&chip->rslow_comp.rslow_cfg, chip->batt_profile + offset, 1);
+
+	offset = RSLOW_THRESH_REG + RSLOW_THRESH_OFFSET - BATT_PROFILE_OFFSET;
+	memcpy(&chip->rslow_comp.rslow_thr, chip->batt_profile + offset, 1);
+
+	offset = TEMP_RS_TO_RSLOW_REG + RS_TO_RSLOW_CHG_OFFSET -
+		BATT_PROFILE_OFFSET;
+	memcpy(&chip->rslow_comp.rs_to_rslow, chip->batt_profile + offset, 2);
+
+	offset = RSLOW_COMP_REG + RSLOW_COMP_C1_OFFSET - BATT_PROFILE_OFFSET;
+	memcpy(&chip->rslow_comp.rslow_comp, chip->batt_profile + offset, 4);
+}
+
 static int populate_system_data(struct fg_chip *chip)
 {
 	u8 buffer[24];
@@ -6553,37 +6576,7 @@ static int populate_system_data(struct fg_chip *chip)
 			chip->ocv_junction_p1p2,
 			chip->ocv_junction_p2p3);
 
-	rc = fg_mem_read(chip, buffer, RSLOW_CFG_REG, 1, RSLOW_CFG_OFFSET, 0);
-	if (rc) {
-		pr_err("unable to read rslow cfg: %d\n", rc);
-		goto done;
-	}
-
-	chip->rslow_comp.rslow_cfg = buffer[0];
-	rc = fg_mem_read(chip, buffer, RSLOW_THRESH_REG, 1,
-			 RSLOW_THRESH_OFFSET, 0);
-	if (rc) {
-		pr_err("unable to read rslow thresh: %d\n", rc);
-		goto done;
-	}
-
-	chip->rslow_comp.rslow_thr = buffer[0];
-	rc = fg_mem_read(chip, buffer, TEMP_RS_TO_RSLOW_REG, 2,
-			RS_TO_RSLOW_CHG_OFFSET, 0);
-	if (rc) {
-		pr_err("unable to read rs to rslow_chg: %d\n", rc);
-		goto done;
-	}
-
-	memcpy(chip->rslow_comp.rs_to_rslow, buffer, 2);
-	rc = fg_mem_read(chip, buffer, RSLOW_COMP_REG, 4,
-			 RSLOW_COMP_C1_OFFSET, 0);
-	if (rc) {
-		pr_err("unable to read rslow comp: %d\n", rc);
-		goto done;
-	}
-
-	memcpy(chip->rslow_comp.rslow_comp, buffer, 4);
+	get_default_rslow_comp_settings(chip);
 done:
 	fg_mem_release(chip);
 	return rc;
@@ -7007,7 +7000,6 @@ static void discharge_gain_work(struct work_struct *work)
 }
 
 #define LOW_LATENCY			BIT(6)
-#define BATT_PROFILE_OFFSET		0x4C0
 #define PROFILE_INTEGRITY_REG		0x53C
 #define PROFILE_INTEGRITY_BIT		BIT(0)
 #define MAX_TRIES_FIRST_EST		3
@@ -7471,6 +7463,12 @@ static int fg_batt_profile_init(struct fg_chip *chip)
 				pr_info("[FG_EST]:Battery profiles same, same battery\n");
 			if (fg_est_dump)
 				schedule_work(&chip->dump_sram);
+			/*
+			 * Copy the profile read from device tree for
+			 * getting profile parameters later.
+			 */
+			memcpy(chip->batt_profile, data, len);
+			chip->batt_profile_len = len;
 			goto done;
 		}
 	} else {
@@ -8480,6 +8478,8 @@ static int fg_init_irqs(struct fg_chip *chip)
 				       chip->soc_irq[FULL_SOC].irq, rc);
 				return rc;
 			}
+			enable_irq_wake(chip->soc_irq[FULL_SOC].irq);
+			chip->full_soc_irq_enabled = true;
 
 			enable_irq_wake(chip->soc_irq[FULL_SOC].irq);
 			chip->full_soc_irq_enabled = true;
@@ -8971,7 +8971,7 @@ static ssize_t fg_memif_dfs_reg_read(struct file *file, char __user *buf,
 	*ppos += len;
 	log->rpos += len;
 
- unlock_mutex:
+unlock_mutex:
 	mutex_unlock(&trans->memif_dfs_lock);
 	return len;
 }
@@ -9045,7 +9045,7 @@ static ssize_t fg_memif_dfs_reg_write(struct file *file, const char __user *buf,
 
  free_buf:
 	kfree(kbuf);
- unlock_mutex:
+unlock_mutex:
 	mutex_unlock(&trans->memif_dfs_lock);
 	return ret;
 }
@@ -10380,10 +10380,11 @@ static void fg_shutdown(struct spmi_device *spmi)
 {
 	struct fg_chip *chip = dev_get_drvdata(&spmi->dev);
 
-	pr_debug("FG shutdown started\n");
-	cancel_delayed_work_sync(&chip->check_sanity_work);
-	cancel_delayed_work_sync(&chip->update_sram_data);
-	cancel_delayed_work_sync(&chip->update_temp_work);
+	if (fg_debug_mask & FG_STATUS)
+		pr_emerg("FG shutdown started\n");
+	if (chip->rslow_comp.active)
+		fg_rslow_charge_comp_clear(chip);
+	fg_cancel_all_works(chip);
 	fg_check_ima_idle(chip);
 	chip->fg_shutdown = true;
 	pr_debug("FG shutdown complete\n");

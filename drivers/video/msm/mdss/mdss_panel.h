@@ -55,12 +55,15 @@ struct panel_id {
 
 #define DSC_PPS_LEN		128
 
+/* HDR propeties count */
+#define DISPLAY_PRIMARIES_COUNT	8	/* WRGB x and y values*/
+
 #if defined(CONFIG_LGE_HIGH_LUMINANCE_MODE)
 /* backlight mapping table type list */
 enum lge_bl_map_type {
 	LGE_BLDFT = 0,			/* default */
 	LGE_BL = LGE_BLDFT,		/* main backlight */
-	LGE_BLHL,				/* main backlight with high luminance */
+	LGE_BLHL,			/* main backlight with high luminance */
 	LGE_BLMAPMAX
 };
 #endif
@@ -592,6 +595,19 @@ struct mdss_panel_roi_alignment {
 	u32 min_height;
 };
 
+struct mdss_panel_hdr_properties {
+	bool hdr_enabled;
+
+	/* WRGB X and y values arrayed in format */
+	/* [WX, WY, RX, RY, GX, GY, BX, BY] */
+	u32 display_primaries[DISPLAY_PRIMARIES_COUNT];
+
+	/* peak brightness supported by panel */
+	u32 peak_brightness;
+	/* Blackness level supported by panel */
+	u32 blackness_level;
+};
+
 struct mdss_panel_info {
 	u32 xres;
 	u32 yres;
@@ -725,6 +741,10 @@ struct mdss_panel_info {
 
 	/* debugfs structure for the panel */
 	struct mdss_panel_debugfs_info *debugfs_info;
+
+	/* HDR properties of display panel*/
+	struct mdss_panel_hdr_properties hdr_properties;
+
 #if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_USE_BLMAP)
 	int blmap_size;
 	int *blmap;
@@ -805,6 +825,9 @@ struct mdss_panel_data {
 	/* To store dsc cfg name passed by bootloader */
 	char dsc_cfg_np_name[MDSS_MAX_PANEL_LEN];
 	struct mdss_panel_data *next;
+
+	int panel_te_gpio;
+	struct completion te_done;
 };
 
 struct mdss_panel_debugfs_info {

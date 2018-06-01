@@ -6038,9 +6038,7 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 		chip->typec_current_ma = 0;
 	/* cancel/wait for hvdcp pending work if any */
 	cancel_delayed_work_sync(&chip->hvdcp_det_work);
-#ifdef CONFIG_LGE_PM
 	smbchg_relax(chip, PM_DETECT_HVDCP);
-#endif
 #ifdef CONFIG_LGE_PM_PARALLEL_BATTERY_PROTECT
 	cancel_delayed_work_sync(&chip->battchg_protect_work);
 #endif
