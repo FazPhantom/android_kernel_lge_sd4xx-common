@@ -1681,7 +1681,6 @@ static irqreturn_t msm_cci_irq(int irq_num, void *data)
 	uint32_t irq;
 	unsigned long flags;
 	struct cci_device *cci_dev = data;
-	unsigned long flags; /*LGE_CHANGE, fix I2C write timeout, 2016-04-08, Camera-Stability@lge.com*/
 	irq = msm_camera_io_r_mb(cci_dev->base + CCI_IRQ_STATUS_0_ADDR);
 	msm_camera_io_w_mb(irq, cci_dev->base + CCI_IRQ_CLEAR_0_ADDR);
 	msm_camera_io_w_mb(0x1, cci_dev->base + CCI_IRQ_GLOBAL_CLEAR_CMD_ADDR);
@@ -1848,7 +1847,6 @@ static void msm_cci_init_cci_params(struct cci_device *new_cci_dev)
 			cci_master_info[i].reset_complete);
 
 		for (j = 0; j < NUM_QUEUES; j++) {
-			spin_lock_init(&new_cci_dev->cci_master_info[i].report_lock[j]); /*LGE_CHANGE, fix I2C write timeout, 2016-04-08, Camera-Stability@lge.com*/
 			mutex_init(&new_cci_dev->cci_master_info[i].mutex_q[j]);
 			init_completion(&new_cci_dev->
 				cci_master_info[i].report_q[j]);

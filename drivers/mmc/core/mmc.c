@@ -2479,9 +2479,19 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend, bool is_runtime_
 				goto out;
 			}
 
-	err = mmc_flush_cache(host->card);
-	if (err)
-		goto out;
+			if (host->card->ext_csd.raw_bkops_status >=
+					EXT_CSD_BKOPS_LEVEL_2) {
+				/*
+				 *  Device still needs time to complete
+				 *  internal BKOPS
+				 */
+				err = -EBUSY;
+				goto out;
+			}
+		}
+		err = mmc_stop_bkops(host->card);
+		if (err)
+			goto out;
 
 	if (mmc_can_sleepawake(host)) {
 		/*
