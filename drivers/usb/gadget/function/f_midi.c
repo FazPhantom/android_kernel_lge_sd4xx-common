@@ -436,6 +436,7 @@ static void f_midi_unbind(struct usb_configuration *c, struct usb_function *f)
 #endif
 
 	usb_free_all_descriptors(f);
+	kfree(midi);
 	the_midi = NULL;
 }
 
@@ -1024,16 +1025,12 @@ int /* __init */ f_midi_bind_config(struct usb_configuration *c,
 	if (in_ports > MAX_PORTS || out_ports > MAX_PORTS)
 		return -EINVAL;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	midi = &_midi;
-#else
 	/* allocate and initialize one new instance */
 	midi = kzalloc(sizeof *midi, GFP_KERNEL);
 	if (!midi) {
 		status = -ENOMEM;
 		goto fail;
 	}
-#endif
 
 	for (i = 0; i < in_ports; i++) {
 		struct gmidi_in_port *port = kzalloc(sizeof(*port), GFP_KERNEL);
@@ -1085,10 +1082,8 @@ int /* __init */ f_midi_bind_config(struct usb_configuration *c,
 setup_fail:
 	for (--i; i >= 0; i--)
 		kfree(midi->in_port[i]);
-#ifndef CONFIG_LGE_USB_G_ANDROID
 	kfree(midi);
 fail:
-#endif
 	return status;
 }
 

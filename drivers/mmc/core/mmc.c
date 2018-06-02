@@ -2492,6 +2492,11 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend, bool is_runtime_
 		err = mmc_stop_bkops(host->card);
 		if (err)
 			goto out;
+	}
+
+	err = mmc_flush_cache(host->card);
+	if (err)
+		goto out;
 
 	if (mmc_can_sleepawake(host)) {
 		/*
@@ -2608,7 +2613,7 @@ static int mmc_suspend(struct mmc_host *host)
 	ktime_t start = ktime_get();
 
 	MMC_TRACE(host, "%s: Enter\n", __func__);
-	err = _mmc_suspend(host, true);
+	err = _mmc_suspend(host, true, false);
 	if (!err) {
 		pm_runtime_disable(&host->card->dev);
 		pm_runtime_set_suspended(&host->card->dev);

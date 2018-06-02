@@ -143,6 +143,47 @@ static struct inode *bio_get_inode(const struct bio *bio)
 
 static void sdhci_dumpregs(struct sdhci_host *host)
 {
+	char file_name[MAX_FILE_NAME];
+	struct mmc_host *mmc;
+	struct mmc_async_req *areq;
+	struct mmc_request *mrq;
+	struct request *req;
+	struct bio *bio;
+	struct inode *inode;
+	struct dentry *dentry;
+
+	mmc = host->mmc;
+	areq = mmc->areq;
+	if(!areq)
+		goto regdump;
+
+	mrq = areq->mrq;
+	if(!mrq)
+		goto regdump;
+
+	req = mrq->req;
+	if(!req)
+		goto regdump;
+
+	bio = req->bio;
+	if(!bio)
+		goto regdump;
+
+	inode = bio_get_inode(bio);
+	if(!inode)
+		goto regdump;
+
+	dentry = d_find_alias(inode);
+	if (dentry) {
+		spin_lock(&dentry->d_lock);
+		strcpy(file_name,(const char *)dentry->d_name.name);
+		pr_info(DRIVER_NAME ":Timeout file_name is %s\n",file_name);
+		spin_unlock(&dentry->d_lock);
+		dput(dentry);
+	}
+
+regdump:
+
 	MMC_TRACE(host->mmc,
 		"%s: 0x04=0x%08x 0x06=0x%08x 0x0E=0x%08x 0x30=0x%08x 0x34=0x%08x 0x38=0x%08x\n",
 		__func__,
