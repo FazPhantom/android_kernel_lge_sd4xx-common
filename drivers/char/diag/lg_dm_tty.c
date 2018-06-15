@@ -188,7 +188,7 @@ void lge_dm_dload_fn(struct work_struct *work)
         mask_buf[length++] = empty_mask_buff[count];
         if (empty_mask_buff[count] == CONTROL_CHAR) {
             if (modem_chip == Primary_modem_chip) {
-                diag_process_hdlc_pkt((unsigned char *)mask_buf, length, NULL);
+                diag_process_hdlc_pkt((unsigned char *)mask_buf, length, 0);
             } else if (modem_chip == Secondary_modem_chip) {
 #ifdef CONFIG_DIAGFWD_BRIDGE_CODE
                 /* send masks to All 9k */
@@ -265,7 +265,7 @@ static int lge_dm_tty_modem_request(struct dm_tty *lge_dm_tty_drv, const unsigne
         if (modem_chip == Primary_modem_chip) {
             /* send masks to modem */
             if(buf != NULL)
-                diag_process_hdlc_pkt((void *)buf + length, count - length, NULL);
+                diag_process_hdlc_pkt((void *)buf + length, count - length, 0);
             else
                 pr_info("[DM_APP]buf is null , lge_dm_tty_modem_request \n");
         } else if (modem_chip == Secondary_modem_chip) {
@@ -326,9 +326,9 @@ static int lge_dm_tty_modem_request(struct dm_tty *lge_dm_tty_drv, const unsigne
             payload_buf = buf + sizeof(int);
             payload_len = count - sizeof(int);
             if(dm_pkt_type == USER_SPACE_RAW_DATA_TYPE)
-                diag_process_apps_pkt((unsigned char *)payload_buf, payload_len, NULL);
+                diag_process_apps_pkt((unsigned char *)payload_buf, payload_len, 0);
             else
-                diag_process_hdlc_pkt((void *)buf, count, NULL);
+                diag_process_hdlc_pkt((void *)buf, count, 0);
         } else if (modem_chip == Secondary_modem_chip) {
 #ifdef CONFIG_DIAGFWD_BRIDGE_CODE
                 /* send masks to All 9k */
