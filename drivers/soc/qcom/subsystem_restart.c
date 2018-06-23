@@ -611,7 +611,7 @@ static void subsystem_shutdown(struct subsys_device *dev, void *data)
 	pr_info("[%s:%d]: Shutting down %s\n",
 			current->comm, current->pid, name);
 #if defined(CONFIG_LGE_HANDLE_PANIC)
-	if (dev->desc->shutdown(dev->desc, true) < 0)
+	if (dev->desc->shutdown(dev->desc, true) < 0) {
 		lge_set_subsys_crash_reason(name, LGE_ERR_SUB_SD);
 		panic("subsys-restart: [%s:%d]: Failed to shutdown %s!",
 			current->comm, current->pid, name);
@@ -621,6 +621,10 @@ static void subsystem_shutdown(struct subsys_device *dev, void *data)
 		panic("subsys-restart: [%s:%d]: Failed to shutdown %s!",
 			current->comm, current->pid, name);
 #endif
+
+	if (dev->desc->shutdown(dev->desc, true) < 0)
+		panic("subsys-restart: [%s:%d]: Failed to shutdown %s!",
+			current->comm, current->pid, name);
 	dev->crash_count++;
 	subsys_set_state(dev, SUBSYS_OFFLINE);
 	disable_all_irqs(dev);
