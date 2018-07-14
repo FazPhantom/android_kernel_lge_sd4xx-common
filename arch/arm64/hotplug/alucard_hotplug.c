@@ -70,7 +70,11 @@ static struct hotplug_tuners {
 	.hotplug_sampling_rate = 65,
 	.hotplug_enable = 1,
 	.min_cpus_online = 1,
+#if defined(CONFIG_MACH_MSM8917_LV517_GSM_US)
+	.maxcoreslimit = 4,
+#else
 	.maxcoreslimit = 8,
+#endif
 	.maxcoreslimit_sleep = 1,
 	.hp_io_is_busy = 0,
 #if defined(CONFIG_POWERSUSPEND) || \
