@@ -122,6 +122,11 @@ config CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 	  loading your cpufreq low-level hardware driver, using the
 	  'interactive' governor for latency-sensitive workloads.
 
+config CPU_FREQ_DEFAULT_GOV_INTERACTIVEX
+	bool "interactivex"
+	select CPU_FREQ_GOV_INTERACTIVEX
+	help
+
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -219,6 +224,11 @@ config CPU_FREQ_GOV_CONSERVATIVE
 	  For details, take a look at linux/Documentation/cpu-freq.
 
 	  If in doubt, say N.
+
+config CPU_FREQ_GOV_INTERACTIVEX
+	tristate "'interactivex' cpufreq governor"
+	help
+	  'interactivex' - Modified version of interactive with sleep+wake code.
 
 config CPUFREQ_DT
 	tristate "Generic DT based cpufreq driver"
